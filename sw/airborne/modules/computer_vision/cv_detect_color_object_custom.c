@@ -274,7 +274,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
 
   int16_t kernel_centroid = 0;
 
-  int16_t kernel_w_cnt = floor(floor(width/kernel_size)*0.4);
+  int16_t kernel_w_cnt = floor(floor(width/kernel_size)*0.5);
   int16_t kernel_h_cnt = floor(heigth/kernel_size);
 
   int16_t vector_array[vector_array_length] = {0};
@@ -483,6 +483,78 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
         *yp = 20;
       }
     }
+  /*
+  Adviced direction predictor
+  Use x = ay**2 + by + c for drawing parabols
+  Draw parabolic around x axis and translate for plotting and vector comparison
+  b = 0
+  c is adjustable
+  y_cross = 200
+  a = -c/y_cross**2
+  */
+  int16_t c = 50;
+  int16_t y_cross = 400;
+  float a = -(float)c/(y_cross * y_cross);
+  int16_t c_array[] = {25, 40, 50, 60};
+
+  int16_t nav_array[4][2] = {-1};
+  int16_t x_ref = 0;
+  int16_t y_ref = 0;
+  int16_t n = 0;
+
+  for (int16_t i = 0; i < sizeof(c_array)/sizeof(c_array[0]); i++)
+  {
+    for (int16_t j = -1; j < 2; j += 2)
+    {
+      for (int16_t n = 0; n < vector_array_mid; n++) {
+        x = vector_array[vector_array_mid + n*j];
+        y_ref = n*kernel_size + half_kernel_size + 1;
+        x_ref = (int)(a*y_ref*y_ref) + c_array[i];
+
+        if (draw) {
+          uint8_t *yp, *up, *vp;
+          pix_values = compute_pixel_yuv(img, x_ref, T_mid+n*j);
+          yp = pix_values.yp;
+          up = pix_values.up;
+          vp = pix_values.vp;
+          *up = 128;
+          *vp = 255;
+          *yp = 128;
+        }
+
+
+
+        if (x < x_ref) {
+          nav_array[i][j] = n;
+          break;
+        }
+      }
+    }
+  }
+
+
+
+  if (draw) {
+
+    // Draw grey lines to indicate test area for predictive routing
+    Bound(y_cross, 0, T_mid);
+    int16_t x = 0;
+    for (int16_t i = 0; i < sizeof(c_array)/sizeof(c_array[0]); i++) {
+      c = c_array[i];
+      for (int16_t y = T_mid - y_cross; y < T_mid + y_cross; y++){
+        int16_t y_temp = y - T_mid;
+          x = a*y_temp*y_temp + c;
+          uint8_t *yp, *up, *vp;
+          pix_values = compute_pixel_yuv(img, x, y);
+          yp = pix_values.yp;
+          up = pix_values.up;
+          vp = pix_values.vp;
+          *up = 128;
+          *vp = 128;
+          *yp = 128;
+        }
+    }
+  }
   test.color_count = cnt;
   test.vector_x = vector_x;
   test.vector_y = vector_y;
