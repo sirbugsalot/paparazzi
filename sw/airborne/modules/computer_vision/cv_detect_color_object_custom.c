@@ -497,11 +497,16 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   float a = -(float)c/(y_cross * y_cross);
   int16_t c_array[] = {25, 40, 50, 60};
 
-  int16_t nav_array[4][2] = {-1};
+  int16_t nav_array[4][2] = {{-1}}; // Array containing side vectors
   int16_t x_ref = 0;
   int16_t y_ref = 0;
   int16_t n = 0;
 
+  float scaling = 0.f;
+  int16_t direction = 0;
+  int16_t calibration_fac = 30;
+
+  // Set vectors in the nav_array and plot them if desired
   for (int16_t i = 0; i < sizeof(c_array)/sizeof(c_array[0]); i++)
   {
     for (int16_t j = -1; j < 2; j += 2)
@@ -519,6 +524,13 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
           vp = pix_values.vp;
           *up = 128;
           *vp = 255;
+          *yp = 128;          
+          pix_values = compute_pixel_yuv(img, x_ref+1, T_mid+n*j);
+          yp = pix_values.yp;
+          up = pix_values.up;
+          vp = pix_values.vp;
+          *up = 128;
+          *vp = 255;
           *yp = 128;
         }
 
@@ -530,11 +542,46 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
         }
       }
     }
+    // Calculate path advice for navigation
+    direction += nav_array[i][1] - nav_array[i][0];
+    scaling += nav_array[i][0] + nav_array[i][1];
   }
+  direction = (int)(calibration_fac/scaling)*direction;
+  Bound(direction, -T_mid, T_mid);
 
 
-
+  PRINT("DIRECTION: %d\n", direction);
   if (draw) {
+    // Draw direction
+    if (direction >= 0) {
+      for (int16_t i = 0; i < direction; i++) {
+        x = 80;
+        y = T_mid + i;
+        uint8_t *yp, *up, *vp;
+        pix_values = compute_pixel_yuv(img, x, y);
+        yp = pix_values.yp;
+        up = pix_values.up;
+        vp = pix_values.vp;
+        *up = 230;
+        *vp = 100;
+        *yp = 29;
+      }
+    }
+    else {
+      for (int16_t i = 0; i > direction; i--) {
+        x = 80;
+        y = T_mid + i;
+        uint8_t *yp, *up, *vp;
+        pix_values = compute_pixel_yuv(img, x, y);
+        yp = pix_values.yp;
+        up = pix_values.up;
+        vp = pix_values.vp;
+        *up = 230;
+        *vp = 100;
+        *yp = 29;
+      }
+    }
+
 
     // Draw grey lines to indicate test area for predictive routing
     Bound(y_cross, 0, T_mid);
