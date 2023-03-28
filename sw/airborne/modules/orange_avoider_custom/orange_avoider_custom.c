@@ -65,6 +65,7 @@ float maxDistance = 2.25;               // max waypoint displacement [m]
 
 int16_t pixelX = 120; //initial values
 int16_t pixelY = 260;
+int32_t direction = 0;
 
 bool new_message = false; //boolean to keep track of vision
 
@@ -85,13 +86,16 @@ const int16_t max_trajectory_confidence = 6; // number of consecutive negative o
 #endif
 static abi_event color_detection_ev;
 static void color_detection_cb(uint8_t __attribute__((unused)) sender_id,
-                               int16_t __attribute__((unused)) pixel_x, int16_t __attribute__((unused)) pixel_y,
+                               int32_t pixel_x, int16_t __attribute__((unused)) pixel_y,
                                int16_t pixel_width, int16_t pixel_height,
                                int32_t quality, int16_t __attribute__((unused)) extra)
 {
   confidence_value = quality;  //proportional to length of middle vectors 0-240
   pixelX = pixel_width;  //x coordinates of optimal value
   pixelY = pixel_height; // y
+  direction = pixel_x; //direction value from vision
+
+  PRINT("Direction as measured in nav code %d", direction);
 
   if (quality = true){
     //PRINT("VISION TRUE");

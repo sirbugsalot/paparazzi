@@ -141,7 +141,7 @@ struct return_value {
   uint32_t color_count;
   int16_t vector_x;
   int16_t vector_y;
-  int16_t direction;
+  int32_t direction;
 };
 
 struct pixel_values {
@@ -189,11 +189,12 @@ static struct image_t *object_detector(struct image_t *img, uint8_t filter)
 
   pthread_mutex_lock(&mutex);
   global_filters[0].color_count = result.color_count;
-  global_filters[0].x_c = result.direction;
+  global_filters[0].x_c = x_c;
   global_filters[0].y_c = y_c;
   global_filters[0].updated = true;
   global_filters[0].vector_x = result.vector_x;
   global_filters[0].vector_y = result.vector_y;  
+  global_filters[0].direction = result.direction;
   pthread_mutex_unlock(&mutex);
 
   return img;
@@ -625,7 +626,7 @@ void color_object_detector_periodic(void)
   pthread_mutex_unlock(&mutex);
 
   if(local_filters[0].updated){
-    AbiSendMsgVISUAL_DETECTION(COLOR_OBJECT_DETECTION1_ID, local_filters[0].x_c, local_filters[0].y_c,
+    AbiSendMsgVISUAL_DETECTION(COLOR_OBJECT_DETECTION1_ID, local_filters[0].direction, local_filters[0].y_c,
         local_filters[0].vector_x, local_filters[0].vector_y, local_filters[0].color_count, 0);
     local_filters[0].updated = false;
   }
