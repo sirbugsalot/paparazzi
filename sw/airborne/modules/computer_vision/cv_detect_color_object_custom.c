@@ -496,24 +496,26 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   int16_t y_cross = 400;
   float a = -(float)c/(y_cross * y_cross);
   int16_t c_array[] = {25, 40, 50, 60};
+  int16_t c_array_size = 4;//sizeof(c_array)/sizeof(c_array[0]);
 
-  int16_t nav_array[4][2] = {{-1}}; // Array containing side vectors
   int16_t x_ref = 0;
   int16_t y_ref = 0;
-  int16_t n = 0;
+  // int16_t n = 0;
 
-  float scaling = 0.f;
   int16_t direction = 0;
-  int16_t calibration_fac = 30;
+  // int16_t calibration_fac = 20;
+  // int16_t side_saturation = 15;
+  int16_t direction_saturation = 200;
 
   // Set vectors in the nav_array and plot them if desired
-  for (int16_t i = 0; i < sizeof(c_array)/sizeof(c_array[0]); i++)
+  for (int16_t i = c_array_size - 1; i >= 0; i--)
   {
+    int16_t difference = 0;
     for (int16_t j = -1; j < 2; j += 2)
     {
       for (int16_t n = 0; n < vector_array_mid; n++) {
         x = vector_array[vector_array_mid + n*j];
-        y_ref = n*kernel_size + half_kernel_size + 1;
+        y_ref = (n*kernel_size + half_kernel_size + 1)*j;
         x_ref = (int)(a*y_ref*y_ref) + c_array[i];
 
         if (draw) {
@@ -537,17 +539,18 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
 
 
         if (x < x_ref) {
-          nav_array[i][j] = n;
+          difference += j*n;
           break;
         }
       }
     }
-    // Calculate path advice for navigation
-    direction += nav_array[i][1] - nav_array[i][0];
-    scaling += nav_array[i][0] + nav_array[i][1];
+    // int16_t difference = nav_array[i][1] - nav_array[i][0];
+    // Bound(difference, -side_saturation, side_saturation);s
+    direction += difference;
   }
-  direction = (int)(calibration_fac/scaling)*direction;
-  Bound(direction, -T_mid, T_mid);
+  // direction = (int)((0.8 + (calibration_fac/scaling))*direction);
+  // Bound(direction, -direction_saturation, direction_saturation);
+
 
 
   PRINT("DIRECTION: %d\n", direction);
@@ -555,7 +558,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
     // Draw direction
     if (direction >= 0) {
       for (int16_t i = 0; i < direction; i++) {
-        x = 80;
+        x = 20;
         y = T_mid + i;
         uint8_t *yp, *up, *vp;
         pix_values = compute_pixel_yuv(img, x, y);
@@ -569,7 +572,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
     }
     else {
       for (int16_t i = 0; i > direction; i--) {
-        x = 80;
+        x = 20;
         y = T_mid + i;
         uint8_t *yp, *up, *vp;
         pix_values = compute_pixel_yuv(img, x, y);
@@ -586,7 +589,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
     // Draw grey lines to indicate test area for predictive routing
     Bound(y_cross, 0, T_mid);
     int16_t x = 0;
-    for (int16_t i = 0; i < sizeof(c_array)/sizeof(c_array[0]); i++) {
+    for (int16_t i = 0; i < c_array_size; i++) {
       c = c_array[i];
       for (int16_t y = T_mid - y_cross; y < T_mid + y_cross; y++){
         int16_t y_temp = y - T_mid;
