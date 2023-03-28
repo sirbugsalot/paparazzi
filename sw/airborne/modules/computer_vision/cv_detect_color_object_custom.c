@@ -134,12 +134,14 @@ struct color_object_t {
 
   int16_t vector_x;
   int16_t vector_y;
+  int32_t direction;
 };
 
 struct return_value {
   uint32_t color_count;
   int16_t vector_x;
   int16_t vector_y;
+  int16_t direction;
 };
 
 struct pixel_values {
@@ -187,7 +189,7 @@ static struct image_t *object_detector(struct image_t *img, uint8_t filter)
 
   pthread_mutex_lock(&mutex);
   global_filters[0].color_count = result.color_count;
-  global_filters[0].x_c = x_c;
+  global_filters[0].x_c = result.direction;
   global_filters[0].y_c = y_c;
   global_filters[0].updated = true;
   global_filters[0].vector_x = result.vector_x;
@@ -502,7 +504,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   int16_t y_ref = 0;
   // int16_t n = 0;
 
-  int16_t direction = 0;
+  int32_t direction = 0;
   // int16_t calibration_fac = 20;
   // int16_t side_saturation = 15;
   int16_t direction_saturation = 200;
@@ -513,6 +515,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
     int16_t difference = 0;
     for (int16_t j = -1; j < 2; j += 2)
     {
+      uint16_t temp = 0;
       for (int16_t n = 0; n < vector_array_mid; n++) {
         x = vector_array[vector_array_mid + n*j];
         y_ref = (n*kernel_size + half_kernel_size + 1)*j;
@@ -536,13 +539,15 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
           *yp = 128;
         }
 
-
-
+        
+        temp = n;
         if (x < x_ref) {
-          difference += j*n;
+          
           break;
         }
       }
+      difference += j*temp;
+      PRINT("N: %d\n", temp);
     }
     // int16_t difference = nav_array[i][1] - nav_array[i][0];
     // Bound(difference, -side_saturation, side_saturation);s
@@ -608,6 +613,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   test.color_count = cnt;
   test.vector_x = vector_x;
   test.vector_y = vector_y;
+  test.direction = direction;
   return test;
 }
 
