@@ -387,7 +387,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   float pitch  = DegOfRad((stateGetNedToBodyEulers_f()->theta)); //no float angle norm
 
   //PRINT("Pitch %f", pitch);  
-  int16_t T_x = 4.0 * -1.0 * pitch + 20;
+  int16_t T_x = 4.0 * -1.0 * pitch;
   if (T_x < 0){
     T_x = 0;
   }
@@ -396,7 +396,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   }
   //PRINT("Triangle height %d", T_x);  
 
-  int16_t T_y = 160;
+  int16_t T_y = 190;
   float T_mid = vector_array_mid*kernel_size - half_kernel_size;
   float alpha = T_x/(0.5 * T_y);
   float beta1 = T_x - alpha*(T_mid);
@@ -406,7 +406,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   int16_t vector_y = 0;
   bool in_triangle = true;
 
-  for (int8_t i = 0; i < 20; i++){
+  for (int8_t i = 0; i < vector_array_length; i++){
     int16_t vector_length = vector_array[i];
 
     int16_t y = i*kernel_size + half_kernel_size;
@@ -508,7 +508,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   int32_t direction = 0;
   // int16_t calibration_fac = 20;
   // int16_t side_saturation = 15;
-  int16_t direction_saturation = 200;
+  int16_t direction_saturation = 50;
 
   // Set vectors in the nav_array and plot them if desired
   for (int16_t i = c_array_size - 1; i >= 0; i--)
@@ -554,7 +554,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
     direction += difference;
   }
   // direction = (int)((0.8 + (calibration_fac/scaling))*direction);
-  // Bound(direction, -direction_saturation, direction_saturation);
+  Bound(direction, -direction_saturation, direction_saturation);
 
 
 
