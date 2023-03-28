@@ -140,6 +140,7 @@ struct return_value {
   uint32_t color_count;
   int16_t vector_x;
   int16_t vector_y;
+  int* ptr;
 };
 
 struct pixel_values {
@@ -248,6 +249,209 @@ struct pixel_values compute_pixel_yuv(struct image_t *img, int16_t x, int16_t y)
   return result;
 }
 
+int* generate_sub_mask(struct image_t *img, int target_h, int target_w, int og_h, int og_w, bool draw, uint8_t lum_min, uint8_t lum_max,
+                              uint8_t cb_min, uint8_t cb_max,
+                              uint8_t cr_min, uint8_t cr_max){
+  // int row = 0;
+  int * mask_array = malloc(sizeof(int)*target_h*target_w);
+  int counter = 0;
+  struct pixel_values pix_values;  
+  for (int j = og_h-target_h; j <og_h; j++)
+  {
+    for (int i = (og_w-target_w)/2; i < (og_w+target_w)/2; i++)
+    {
+      uint8_t *yp, *up, *vp;
+      pix_values = compute_pixel_yuv(img, i, j);
+      yp = pix_values.yp;
+      up = pix_values.up;
+      vp = pix_values.vp;
+
+
+      if ( (*yp >= lum_min) && (*yp <= lum_max) &&
+        (*up >= cb_min ) && (*up <= cb_max ) &&
+        (*vp >= cr_min ) && (*vp <= cr_max )) {
+          
+        mask_array[counter] = 1;
+        if (draw){
+                *yp = 255; 
+        }
+        }
+      else{
+        mask_array[counter] = 0;
+      }
+        counter ++;
+
+}
+    
+  }
+  return mask_array;
+  
+}
+
+// int * generate_sub_im(int mask[][], int h_t, int w_t, int h, int w){
+//     int length = h_t*w_t;
+//     int submask[length];
+
+//     int start_row = h - h_t;
+//     for (int i = 0; i < w_t; i++)
+//     {   
+//         for (int j = 0; j < h_t; j++)
+//         {
+//             submask[w_t*(i)+j]=mask[start_row+i][w/2-w_t+j];
+//         }
+        
+//         // int row = i/w_t;
+//         // int col = i%w_t;
+//         // submask[i] = mask[start_row*w + row*w + (col-w_t/2)];
+//     }
+
+//     return submask;
+    
+
+// }
+
+int find_next(int im_bw[], int prev_points[],  const int h, const int w, int step, int nr_prev_points){
+    int* init_guess = malloc(2 * sizeof(int));
+    int* dir = malloc(2 * sizeof(int));
+
+    // int nr_prev_points = sizeof(prev_points)/sizeof(int);
+    
+    int* points_arr = malloc((2+nr_prev_points)*sizeof(int));
+    points_arr[0] = prev_points[0];
+    points_arr[1] = prev_points[0];
+    // printf("\n");
+    // printf("\nPoint in prevPoints: %d",points_arr[0]);
+    // printf("\nPoint in prevPoints: %d",points_arr[1]);
+    for (int i = 0; i < nr_prev_points; i++)
+    {
+        points_arr[2+i] = prev_points[i];
+        // printf("\nPoint in prevPoints: %d",prev_points[i]);
+    }
+    
+    // printf("\n");
+
+    int prev_len = nr_prev_points+2;
+    
+
+    dir[0] = ((points_arr[prev_len-3]*1+points_arr[prev_len-2]*2+points_arr[prev_len-1]*3)/6) - points_arr[prev_len-2];
+    dir[1] = 3 * (prev_len-2);
+    // printf("\nDirection in y: %d",dir[0]);
+    init_guess[0] = points_arr[prev_len-1] + dir[0];
+    init_guess[1] = dir[1];
+    // printf("\nINIT GUESS: %d, %d",init_guess[0],init_guess[1]);
+    int edge_found = 0;
+    while (!edge_found) {
+        if (init_guess[0] + 1 < h) {
+            if ((im_bw[init_guess[0]*w + init_guess[1]] + im_bw[(init_guess[0]-1)*w + init_guess[1]]) == 1) {
+                edge_found = 1;
+                }
+            else if ((im_bw[init_guess[0]*w + init_guess[1]] + im_bw[(init_guess[0]-1)*w + init_guess[1]]) == 0)
+            {
+                init_guess[0] ++;
+            }
+            else{
+                init_guess[0] --;
+            }
+            }
+
+        else{
+            return h;
+        }
+
+    }
+    return init_guess[0];
+}
+
+int* hor_tracer(int sub_im[], int step, int h, int w){
+    // step = 5;
+    
+    bool ground_found = false;
+    int i = 0;
+
+    int col = 0;
+    int area = 0;
+
+    /* find first point*/
+    while (ground_found==false && i < (h-5) && col < (w-5))
+    {
+        if (sub_im[i*w + col] != 0){
+           area = 0; 
+           for (int j = 0; j < 5; j++)
+           {
+            for (int k = 0; k < 5; k++)
+            {
+                area = area + sub_im[(i+j)*w + col + k];
+                
+            }
+            
+           }
+           if (area>=20)
+            {
+                ground_found = true;
+            }
+            
+           
+        }
+        i++;
+        if (i==h-5)
+        {
+            i = 0;
+            col++;
+        }
+    }
+    int start_row = i;
+    // printf("\nstart point: %d", start_row);
+
+    bool edge_dir_found = false;
+    int * hor_points_y = malloc(sizeof(int)*w/step);
+    hor_points_y[0] = start_row;
+
+    i = 0;
+    // bool end = false;
+    // printf("\nWidth: %d, step: %d", w, step);
+    // printf("\nNumber of points to be found: %d", 1+w/step);
+    for (int index = 1; index < w/step+1; index++)  
+    {
+        int next_y  = find_next(sub_im, hor_points_y, h,w,step, index);
+        hor_points_y[index] = next_y;
+        // printf("\nNext y point: %d", hor_points_y[index]);        
+    }
+    return hor_points_y;
+        
+    }
+    
+int mom_changes(int hor_points_y[],int length, float thr, int step){
+    // f''(x) ≈ [f(x+h) - 2f(x) + f(x-h)] / h^2
+    // note we are changing the original hor_points array if we change hor_points_y
+    int count = 0;
+    // printf("\nlength: %d", length);
+
+    for (int i = 1; i < length-1; i++)
+    {
+        float fdd = (float)((hor_points_y)[i-1] - (hor_points_y[i])*2 + hor_points_y[i+1])/(step*step);
+        // printf("\nhorizon points: %d", ((hor_points_y)[i-1] - (hor_points_y[i])*2 + hor_points_y[i+1])/step);
+        // printf("\nfloat: %f", fdd);
+        if (fdd>thr || -fdd>thr)
+        {
+            count++;
+            // printf(count);
+        }   
+    } 
+    return count;}
+
+int cmpfunc (const void * a, const void * b) {
+   return ( *(int*)a - *(int*)b );
+}
+
+int safety(int hor_points_y[], int length, int h){
+    // CALL THIS FUNCTION AS LAST ONE CAUSE IT CHANGES ORDER OF THE ELEMENTS!!!!!!!
+    qsort(hor_points_y, length, sizeof(int),cmpfunc);
+
+    int avg = (hor_points_y[0] + hor_points_y[1] + hor_points_y[2])/3;
+    
+    int safety = (int)((float)(h-avg)/h*240);
+    return safety;
+}
 struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc, bool draw,
                               uint8_t lum_min, uint8_t lum_max,
                               uint8_t cb_min, uint8_t cb_max,
@@ -258,9 +462,11 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   uint32_t tot_y = 0;
   uint8_t *buffer = img->buf;
 
+  uint8_t mask_array[240][520] = {0};
+
   struct return_value test;
   struct pixel_values pix_values;  
-
+  
   int16_t heigth = img->h;
   int16_t width = img->w;
   int16_t kernel_cnt = 0;
@@ -279,7 +485,31 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
 
   int16_t vector_array[vector_array_length] = {0};
 
+
+  int16_t vector_x = 0;
+  int16_t vector_y = 0;
+
+  int h_sub = 74;
+  int w_sub = 50;
+  int step = 3;
+
+  int* sub_arr =generate_sub_mask(img, h_sub, w_sub,240,520,true, lum_min, lum_max,
+                               cb_min,  cb_max,
+                               cr_min,  cr_max);
+
+  int* horizon = hor_tracer(sub_arr, 3, h_sub, w_sub);
+  int length = w_sub/step;
+  int mom_change = mom_changes(horizon, length,0.5,step);
+  int safe = safety(horizon, length, h_sub);
+
+  if (safe>50){
+    test.color_count = safe;
+    test.vector_x = vector_x;
+    test.vector_y = vector_y;
+    return test;
+  }
   for (int8_t y_k = 0; y_k < kernel_h_cnt; y_k++){
+    
     // for (int8_t x_k = 0; x_k < kernel_w_cnt; x_k++){
 
       int8_t state = 0;
@@ -308,6 +538,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
                 *yp = 255;  // make pixel brighter in image
               }
               kernel_cnt++;
+              mask_array[x][y] = 1;
               }
           }
 
@@ -317,18 +548,24 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
                 *yp = 255;  // make pixel brighter in image
               }
               kernel_cnt++;
+              mask_array[x][y] = 1;
+
             }       
             if( (*up > 111.5) && (*up <= 115.5) && (*vp <= 137.5) && (*yp > 96.5) ) {
               if (draw){
                 *yp = 255;  // make pixel brighter in image
               }
               kernel_cnt++;
+              mask_array[x][y] = 1;
+
             }       
             if( (*up <= 111.5) && (*vp > 143.5) && (*vp <= 146.5) && (*yp > 108.5) ) {
               if (draw){
                 *yp = 255;  // make pixel brighter in image
               }
               kernel_cnt++;
+              mask_array[x][y] = 1;
+
             }       
           }
             
@@ -354,6 +591,14 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
       vector_array[y_k] = kernel_centroid;
     }
   }
+
+
+  
+
+
+
+
+
   if (draw){
     int16_t max = 0;
     int8_t vector_count = 0;
@@ -398,8 +643,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   float beta1 = T_x - alpha*(T_mid);
   float beta2 = T_x + alpha*(T_mid);
 
-  int16_t vector_x = 0;
-  int16_t vector_y = 0;
+  
   bool in_triangle = true;
 
   for (int8_t i = 0; i < 20; i++){
@@ -485,6 +729,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   test.color_count = cnt;
   test.vector_x = vector_x;
   test.vector_y = vector_y;
+  test.ptr = &mask_array;
   return test;
 }
 
