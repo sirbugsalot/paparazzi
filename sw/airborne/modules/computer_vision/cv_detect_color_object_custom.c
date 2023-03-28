@@ -548,7 +548,6 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
         }
       }
       difference += j*temp;
-      PRINT("N: %d\n", temp);
     }
     // int16_t difference = nav_array[i][1] - nav_array[i][0];
     // Bound(difference, -side_saturation, side_saturation);s
@@ -559,7 +558,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
 
 
 
-  PRINT("DIRECTION: %d\n", direction);
+  // PRINT("DIRECTION: %d\n", direction);
   if (draw) {
     // Draw direction
     if (direction >= 0) {
