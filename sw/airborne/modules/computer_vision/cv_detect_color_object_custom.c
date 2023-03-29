@@ -261,7 +261,7 @@ int* generate_sub_mask(struct image_t *img, int target_h, int target_w, int og_h
     for (int i = (og_w-target_w)/2; i < (og_w+target_w)/2; i++)
     {
       uint8_t *yp, *up, *vp;
-      pix_values = compute_pixel_yuv(img, i, j);
+      pix_values = compute_pixel_yuv(img, j, i);
       yp = pix_values.yp;
       up = pix_values.up;
       vp = pix_values.vp;
@@ -340,7 +340,9 @@ int find_next(int im_bw[], int prev_points[],  const int h, const int w, int ste
     init_guess[1] = dir[1];
     // printf("\nINIT GUESS: %d, %d",init_guess[0],init_guess[1]);
     int edge_found = 0;
-    while (!edge_found) {
+    int ij = 0;
+    while (!edge_found && ij < 100) {
+        ij++;
         if (init_guess[0] + 1 < h) {
             if ((im_bw[init_guess[0]*w + init_guess[1]] + im_bw[(init_guess[0]-1)*w + init_guess[1]]) == 1) {
                 edge_found = 1;
