@@ -2,9 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// #define w 50
-// #define h 75
-// #define step 3
+// to get elaborate explanation of the code, the reader is advised to read the most_optimized.py file
+
 int * generate_sub_im(int mask[][], int h_t, int w_t, int h, int w){
     int length = h_t*w_t;
     int submask[length];
