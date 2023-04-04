@@ -7,31 +7,22 @@ import os
 file = 'AE4317_2019_datasets/cyberzoo_aggressive_flight/20190121-144646/41815146.jpg'
 assert os.path.exists(file)
 
-# image = 
-# def reduce_size(im, vert_pix = 24, hor_pix = 52):
-#     ''' input from Bebop has resolution: 240 x 520'''
-#     out_im = np.zeros((24,52))
-#     i = 4
-#     j = 4
-#     sub_arr = im[j-5:j+5, i-5:i+5,:]
-#     print(sub_arr)
-#     # for i_count, i in enumerate(range(4,235, 10)):
-#     #     for j_count, j in enumerate(range(4,515,10)):
-#     #         sub_arr = im[j-5:j+5, i-5:i+5,:]
-
 im = cv2.imread(file)
-
+'''
+This file contains preparation for the VIOLA JONES
+'''
 plt.figure()
+
+
 # reduce image size for viola jones
 im_red = cv2.resize(im, (24,52))
 rgb = cv2.cvtColor(im_red, cv2.COLOR_BGR2RGB)
 
 yuv = cv2.cvtColor(im_red, cv2.COLOR_RGB2YUV)
-# plt.imshow(yuv)
-# plt.show()
+
 
 ones = np.ones((4,4))
-print(np.triu(ones))
+
 def integral_image(im_reduced):
     ''' Work out on OneNote'''
     int_im = np.zeros(im_reduced.shape)

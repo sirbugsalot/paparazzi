@@ -10,6 +10,21 @@ file_01 = 'AE4317_2019_datasets/cyberzoo_aggressive_flight/20190121-144646/41815
 file = 'test.jpg'
 
 assert os.path.exists(file)
+im = cv2.imread(file)
+sub_width = 25
+height = 75
+
+'''
+This file tries to find objects by tracing the contour of the ground and comparing the horizon to a straight line
+'''
+
+# first create sub_images of original image to create more test samples
+
+sub_images = []
+for i in range(sub_width,im.shape[1],2*sub_width):
+    sub_images.append(im[240-height:-1,i-sub_width:i+sub_width,:])
+
+# organize filters
 
 # standard edge detection
 ridge_01 = np.array([[0,-1,0],
@@ -34,35 +49,40 @@ ver_filter = np.array([[1,0,1],
                   [1,0,1],
                   [1,0,1]])
 
-im = cv2.imread(file)
-# sub_width = 25
-# im_sub = im[:,260-sub_width:260+sub_width,:]
+# im = cv2.imread(file)
+
 def contour_finder(im):
+    '''
+    Input:
+    im: image to trace the contour
+    
+    output:
+    contour: the contour of the image ground
+    everything else: for debugging purposes'''
+
+    # detect ground and create mask
     ground = ground_decision_tree(im)[1]
     ground = np.float32(ground)
 
     
-
-    # ground_edges = convolve(ground,ridge_01)
-
-    # ground_edges[ground_edges!=0] = 1
-
     ground[ground != 0] = 1
     ground = cv2.convertScaleAbs(ground)
-    # plt.imshow(ground)
-    # plt.show()
 
+    # find contours using cv2
     contours, order = cv2.findContours(ground, 1,2)
     # Sort the contours by length
     cntsSorted = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
   
 
     contour = np.zeros(im.shape)
+    # draw the three longest contours on a new image: contour
     cv2.drawContours(contour, cntsSorted,0, (0,255,0), 3)
     contour[-6:-1,:,1] = 0
     contour[-1,:,1] = 0
 
+    # trace the middle of the image
     middle = im.shape[1]//2
+    # isolate the middle column
     vector_str = contour[:,middle,1]
     # more efficient if traverse wrong way around
     pixel = 0
@@ -70,7 +90,7 @@ def contour_finder(im):
         if int(val)!=0 and i>pixel:
             pixel = i
 
-
+    # draw contours on the input image 
     cv2.drawContours(im, cntsSorted, 0, (0,255,0), 3)
 
 
@@ -93,9 +113,16 @@ def contour_finder(im):
     return contour, [0,i], [contour.shape[1]-1, j]
 
 def MSE_hor(contour, hor_coord_x, hor_coord_y, step = 10, threshold = 10):
-    '''Inputs: contour has contours of ground
-    hor_coord is x and y coordinates of end points of estimated horizon
-    step is at what amount of pixels we check the correspondence of error and horizon'''
+    '''Inputs: 
+    contour: list of contours of image
+    hor_coord_x: x coordinates of most left and most right horizon points
+    hor_coord_y: y coordinates of most left and most right horizon points
+    step: number of pixels we check the correspondence of error and horizon
+    threshold: allowable MSE error
+    
+    output:
+    mse: mean squared error of straight line and horizon
+    obj: true if object is detected'''
 
     x_1, x_2 = hor_coord_x[0],hor_coord_x[1]
     y_1, y_2 = hor_coord_y[0],hor_coord_y[1]
@@ -120,31 +147,19 @@ def MSE_hor(contour, hor_coord_x, hor_coord_y, step = 10, threshold = 10):
     return mse, object_det
 
 
-# contour, coord1, coord2 = contour_finder(im_sub)
-# mse, obj = MSE_hor(contour,(coord1[0], coord2[0]),(coord1[1], coord2[1]))
+sub_image = sub_images[3]
 
-im = cv2.imread(file)
-sub_width = 25
+contour, coord1, coord2 = contour_finder(sub_image)
+mse, obj = MSE_hor(contour,(coord1[0], coord2[0]),(coord1[1], coord2[1]))
 
-sub_images = []
-for i in range(sub_width,im.shape[1],2*sub_width):
-    sub_images.append(im[:,i-sub_width:i+sub_width,:])
-
-
-for sub_image in sub_images:
-    contour, coord1, coord2 = contour_finder(sub_image)
-    mse, obj = MSE_hor(contour,(coord1[0], coord2[0]),(coord1[1], coord2[1]))
-
-    if obj == True:
-        plt.title('Object Detected')
-        
-    else:
-        plt.title('No Object Detected')
-    plt.imshow(sub_image)
-    plt.show()
-
-
-
+if obj == True:
+    plt.title('Contour Detection: Object Detected')
+    
+else:
+    plt.title('Contour Detection: No Object Detected')
+plt.plot((coord1[0], coord2[0]),(coord1[1], coord2[1]),c='r')
+plt.imshow(sub_image)
+plt.show()
 
 
 

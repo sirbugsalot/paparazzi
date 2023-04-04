@@ -23,8 +23,6 @@ def reduce_files(folder_og, folder_tg, width = 24, height = 52):
         cv2.imwrite(str(file),image_red)
         os.chdir(folder_og)
 
-# reduce_files(folder_pos, target_pos)
-# reduce_files(folder_neg, target_neg)
 
 def generate_info(folder_pos, folder_neg):
     for img in os.listdir(folder_pos):

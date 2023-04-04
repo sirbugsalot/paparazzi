@@ -15,13 +15,12 @@ assert os.path.exists(file)
 
 im = cv2.imread(file)
 
-# filter_color(im,y_low=0,y_high=0,u_low=0,u_high=115.5,v_low=0,v_high=145)
+'''
+This file contains a ground decision tree
+'''
 
 def ground_decision_tree(im):
-    # # u has to be smaller than 115.5
-    # im[:,:,1][im[:,:,1]<= 115.5] = 0
-    # im[:,:,2][im[:,:,1]>= 115.5] = 255
-    # im[:,:,0][im[:,:,1]<= 115.5] = 0
+
     im = cv2.cvtColor(im, cv2.COLOR_BGR2YUV)
 
     indices = np.where((im[:,:,1]<=115.5) & (im[:,:,2]<=145))
@@ -32,21 +31,9 @@ def ground_decision_tree(im):
     mask = np.zeros((im.shape[0],im.shape[1]))
     mask[indices[0],indices[1]] = 255
     mask[mask<254] = 0
-    
-    # im[:,:,1][np.where((im[:,:,2]<=145.5))] = 255
-    # im[:,:,2][np.where((im[:,:,2]<=145.5))] = 128
-    # im[:,:,0][np.where((im[:,:,2]<=145.5))] = 128
 
-    # im[im[:,:,1]>=115.5 and im[:,:,2]>=145] = 0
-    # im_v = im[im_u]
     im = cv2.cvtColor(im, cv2.COLOR_YUV2RGB)
     return im, mask
 
 def isophote(im):
     pass
-# im_ground = ground_decision_tree(im)[0]
-# mask = ground_decision_tree(im)[1]
-# plt.figure();
-# plt.imshow(mask);
-# # plt.title('Original image');
-# plt.show()
