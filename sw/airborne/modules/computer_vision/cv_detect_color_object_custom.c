@@ -26,29 +26,35 @@ static pthread_mutex_t mutex;
 
 //NEW GLOBAL VARIABLES
 
+// Kernel size for constructing vectors
 #ifndef kernel_size
-#define kernel_size 25
+#define kernel_size 15
 #endif
 
+// Manually insert the following parameters
 #ifndef half_kernel_size
-#define half_kernel_size 12
+#define half_kernel_size 7
 #endif
 
 // floor(520 / kernel_size)
 #ifndef vector_array_length
-#define vector_array_length 20
+#define vector_array_length 34
 #endif
 
 // floor(vector_array_length / 2)
 #ifndef vector_array_mid
-#define vector_array_mid 10
+#define vector_array_mid 17
 #endif
 
-// in_nps = 1 mean true
+// in_nps = 1 mean true (running in simulator or real life)
 #ifndef in_nps
-#define in_nps 1
+#define in_nps 0
 #endif
 
+// curtain_open = 1 means true
+#ifndef curtain_open
+#define curtain_open 1
+#endif
 
 
 float float_angle_norm(float a) {
@@ -62,50 +68,6 @@ float float_angle_norm(float a) {
   }
   return a;  
 }
-
-// void filter_floor_ap(int* kernel_count, int* yp, int* up, int* vp, bool draw){
-//   if( (*up <= 111.5) && (*vp <= 143.5) && (*yp > 93.5) && (*yp <= 160.5) ){
-//     if (draw){
-//       *yp = 255;  // make pixel brighter in image
-//     }
-//     *kernel_count++;
-//   }       
-//   if( (*up > 111.5) && (*up <= 115.5) && (*vp <= 137.5) && (*yp > 96.5) ) {
-//     if (draw){
-//       *yp = 255;  // make pixel brighter in image
-//     }
-//     *kernel_count++;
-//   }       
-//   if( (*up <= 111.5) && (*vp > 143.5) && (*vp <= 146.5) && (*yp > 108.5) ) {
-//     if (draw){
-//       *yp = 255;  // make pixel brighter in image
-//     }
-//     *kernel_count++;
-//   }   
-// }
-
-// void filter_floor_nps(int* kernel_count, int* yp, int* up, int* vp, bool draw){
-//   if( (*up <= 255) && (*vp <= 255) && (*yp > 0) && (*yp <= 255) ){
-//     if (draw){
-//       *yp = 255;  // make pixel brighter in image
-//     }
-//     *kernel_count++;
-//   }       
-//   if( (*up > 111.5) && (*up <= 115.5) && (*vp <= 137.5) && (*yp > 96.5) ) {
-//     if (draw){
-//       *yp = 255;  // make pixel brighter in image
-//     }
-//     *kernel_count++;
-//   }       
-//   if( (*up <= 111.5) && (*vp > 143.5) && (*vp <= 146.5) && (*yp > 108.5) ) {
-//     if (draw){
-//       *yp = 255;  // make pixel brighter in image
-//     }
-//     *kernel_count++;
-//   }   
-// }
-
-//NEW
 
 // Filter Settings
 uint8_t cod_lum_min1 = 0;
@@ -125,7 +87,9 @@ uint8_t cod_cr_max2 = 0;
 bool cod_draw1 = false;
 bool cod_draw2 = false;
 
-// define global variables
+// define Structs
+
+// Struct for information to be passed on in the abi message
 struct color_object_t {
   int32_t x_c;
   int32_t y_c;
@@ -134,15 +98,18 @@ struct color_object_t {
 
   int16_t vector_x;
   int16_t vector_y;
+  int32_t direction;
 };
 
+// Struct for output of find_object_centroid function
 struct return_value {
   uint32_t color_count;
   int16_t vector_x;
   int16_t vector_y;
-  int* ptr;
+  int32_t direction;
 };
 
+// Struct for YUV pointers
 struct pixel_values {
   uint8_t *yp;
   uint8_t *up;
@@ -193,6 +160,7 @@ static struct image_t *object_detector(struct image_t *img, uint8_t filter)
   global_filters[0].updated = true;
   global_filters[0].vector_x = result.vector_x;
   global_filters[0].vector_y = result.vector_y;  
+  global_filters[0].direction = result.direction;
   pthread_mutex_unlock(&mutex);
 
   return img;
@@ -225,6 +193,7 @@ void color_object_detector_init(void)
 #endif
 }
 
+// Function to return YUV pointers for a given x and y coordinate pixel on the image
 struct pixel_values compute_pixel_yuv(struct image_t *img, int16_t x, int16_t y)
 {
   struct pixel_values result;
@@ -489,11 +458,14 @@ int safety(int hor_points_y[], int length, int h){
     return safety;
 }
 
+// Main visual processing and classification function
 struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc, bool draw,
                               uint8_t lum_min, uint8_t lum_max,
                               uint8_t cb_min, uint8_t cb_max,
                               uint8_t cr_min, uint8_t cr_max)
 {
+
+  // Initialize local variables
   uint32_t cnt = 0;
   uint32_t tot_x = 0;
   uint32_t tot_y = 0;
@@ -507,8 +479,8 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   int16_t heigth = img->h;
   int16_t width = img->w;
   int16_t kernel_cnt = 0;
-
-  int16_t threshold = 255;
+  // Kernel treshold on pixel count for drawing vectors
+  int16_t threshold = 180;
 
   int16_t x = 0;
   int16_t y = 0;
@@ -517,64 +489,37 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
 
   int16_t kernel_centroid = 0;
 
-  int16_t kernel_w_cnt = floor(width/kernel_size);
+  int16_t kernel_w_cnt = floor(floor(width/kernel_size)*0.5); // Multiply by 0.5 such that only the bottom half of the image is scanned
   int16_t kernel_h_cnt = floor(heigth/kernel_size);
 
   int16_t vector_array[vector_array_length] = {0};
 
-
-  int16_t vector_x = 0;
-  int16_t vector_y = 0;
-
-  bool subwindowing = true;
-  if (subwindowing){
-  int h_sub = 100;
-  int w_sub = 50;
-  int step = 3;
-  
-  printf("\n\nSUBWINDOWING...");
-  int* sub_arr =generate_sub_mask(img, h_sub, w_sub,240,520,true, lum_min, lum_max,
-                               cb_min,  cb_max,
-                               cr_min,  cr_max);
-  printf("\nSUBWINDOW MADE...");
-  int* horizon = hor_tracer(sub_arr, 3, h_sub, w_sub,img);
-  printf("\nHORIZON FOUND...");
-  int length = w_sub/step;
-  int mom_change = mom_changes(horizon, length,0.5,step);
-  printf("\nMOMENTUM CHANGES: %d", mom_change);
-  int safe = safety(horizon, length, h_sub);
-  printf("\nSAFETY: %d", safe);
-
-  // if (safe>50){
-  //   test.color_count = safe;
-  //   test.vector_x = vector_x;
-  //   test.vector_y = vector_y;
-  //   return test;
-  // }
-  }
+  // Loop over y coordinates of the image (per kernel block)
   for (int8_t y_k = 0; y_k < kernel_h_cnt; y_k++){
-    
-    // for (int8_t x_k = 0; x_k < kernel_w_cnt; x_k++){
 
       int8_t state = 0;
 
+      // Loop over the x coordinate of the image, only bottom half (see above)
       for (int8_t x_k = kernel_w_cnt-1; x_k >= 0; x_k--){
-
+      
       kernel_cnt = 0;
       kur_x = kernel_size*x_k;
       kur_y = kernel_size*y_k;
+      // Loop through the x and y coordinate in the selected kernel
       for (int8_t i = 0; i < kernel_size; i++){
         for (int8_t j = 0; j < kernel_size; j++){
           x = kur_x + j;
           y = kur_y + i;
 
+          // Retrieve YUV values
           uint8_t *yp, *up, *vp;
           pix_values = compute_pixel_yuv(img, x, y);
           yp = pix_values.yp;
           up = pix_values.up;
           vp = pix_values.vp;
 
-          if (in_nps){
+          // Classify pixel
+          if (in_nps){ // Filter for simulator (simple)
             if ( (*yp >= lum_min) && (*yp <= lum_max) &&
               (*up >= cb_min ) && (*up <= cb_max ) &&
               (*vp >= cr_min ) && (*vp <= cr_max )) {
@@ -587,46 +532,99 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
           }
 
           else {
-            if( (*up <= 111.5) && (*vp <= 143.5) && (*yp > 93.5) && (*yp <= 160.5) ){
-              if (draw){
-                *yp = 255;  // make pixel brighter in image
-              }
-              kernel_cnt++;
-              mask_array[x][y] = 1;
 
-            }       
-            if( (*up > 111.5) && (*up <= 115.5) && (*vp <= 137.5) && (*yp > 96.5) ) {
-              if (draw){
-                *yp = 255;  // make pixel brighter in image
-              }
-              kernel_cnt++;
-              mask_array[x][y] = 1;
+            if (curtain_open) {
+							if( (*up <= 108.5) && (*vp <= 144.5) && (*yp > 124.5) && (*yp <= 186.5) && (*yp > 134.5) && (*vp > 128.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up <= 108.5) && (*vp > 144.5) && (*vp <= 150.5) && (*yp <= 184.5) && (*yp > 133.5) && (*up <= 102.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up > 108.5) && (*up <= 111.5) && (*vp <= 143.5) && (*yp > 135.5) && (*yp <= 184.5) && (*yp > 143.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up <= 108.5) && (*vp <= 144.5) && (*yp > 124.5) && (*yp <= 186.5) && (*yp <= 134.5) && (*up <= 104.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up <= 108.5) && (*vp <= 144.5) && (*yp > 124.5) && (*yp <= 186.5) && (*yp > 134.5) && (*vp <= 128.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up <= 108.5) && (*vp <= 144.5) && (*yp <= 124.5) && (*yp > 112.5) && (*up <= 103.5) && (*yp > 120.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
 
-            }       
-            if( (*up <= 111.5) && (*vp > 143.5) && (*vp <= 146.5) && (*yp > 108.5) ) {
-              if (draw){
-                *yp = 255;  // make pixel brighter in image
-              }
-              kernel_cnt++;
-              mask_array[x][y] = 1;
-
-            }       
-          }
-            
+            }
+            else {
+							if( (*up <= 107.5) && (*vp <= 144.5) && (*yp > 101.5) && (*yp <= 165.5) && (*vp <= 141.5) && (*up > 84.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up <= 107.5) && (*vp <= 144.5) && (*yp > 101.5) && (*yp <= 165.5) && (*vp > 141.5) && (*yp > 111.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up > 107.5) && (*up <= 110.5) && (*vp <= 141.5) && (*yp > 101.5) && (*yp <= 163.5) && (*yp > 111.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up <= 107.5) && (*vp > 144.5) && (*vp <= 149.5) && (*yp > 107.5) && (*yp <= 144.5) && (*up <= 100.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up <= 107.5) && (*vp <= 144.5) && (*yp <= 101.5) && (*yp > 97.5) && (*vp <= 138.5) && (*up > 93.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+							if( (*up > 107.5) && (*up <= 110.5) && (*vp > 141.5) && (*vp <= 144.5) && (*yp > 125.5) && (*yp <= 151.5) ){
+								if (draw){
+									*yp = 255;  // make pixel brighter in image
+								}
+								kernel_cnt++;
+							}
+            }
+          } 
         }
       }
-      //add break when ready
-      //TODO
+
+      // Draw the vectors in the vector list
       if (kernel_cnt > threshold){
         if (state == 0) {
           state = 1;
-          kernel_centroid = kernel_size * x_k + half_kernel_size;
-          // PRINT("Vector length %d\n", kernel_centroid);
-          // PRINT("Yk value %d\n", y_k);
+          kernel_centroid = kernel_size * (x_k + 1);
           vector_array[y_k] = kernel_centroid;
         }
       }
     }
+
+    // If no vector for current y value is drawn yet, draw a vector with length 0
     if (state == 0) {
       state = 1;
       kernel_centroid = 0;
@@ -635,6 +633,8 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
       vector_array[y_k] = kernel_centroid;
     }
   }
+
+  // Draw the vectors on the screen
 
 
   
@@ -668,21 +668,23 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
     }
   }
 
-
+  // Safety Triangle, adjust shape based on pitch
   float pitch  = DegOfRad((stateGetNedToBodyEulers_f()->theta)); //no float angle norm
 
-  PRINT("Pitch %f", pitch);  
-  int16_t T_x = 4.0 * -1.0 * pitch + 20;
+  // T_x and T_y define height and width of triangle
+  int16_t T_x = 4.0 * -1.0 * pitch;
   if (T_x < 0){
     T_x = 0;
   }
   if (T_x > 120){
     T_x = 120;
   }
-  PRINT("Triangle height %d", T_x);  
 
-  int16_t T_y = 160;
+
+  int16_t T_y = 190;
   float T_mid = vector_array_mid*kernel_size - half_kernel_size;
+
+  // Calculate parameters for drawing triangle lines (x = alpha*y + beta)
   float alpha = T_x/(0.5 * T_y);
   float beta1 = T_x - alpha*(T_mid);
   float beta2 = T_x + alpha*(T_mid);
@@ -690,11 +692,13 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   
   bool in_triangle = true;
 
+  // Loop through all vectors in vector array
   for (int8_t i = 0; i < vector_array_length; i++){
     int16_t vector_length = vector_array[i];
 
     int16_t y = i*kernel_size + half_kernel_size;
 
+    // Test if vector is in triangle
     if (y > T_mid) {
         x = y*-1.0*alpha + beta2;
       }
@@ -702,6 +706,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
       x = y*alpha + beta1;
     }
 
+    // Find longest vector outside of safety triangle
     if (x <= 0){
       if (vector_length > vector_x){
         vector_x = vector_length;
@@ -721,7 +726,8 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
       cnt = vector_array[vector_array_mid];
     }
   }
-
+  
+  // Draw safety triangle and max length vector on screen
   if (draw){
     int16_t x = 0;
 
@@ -770,10 +776,134 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
         *yp = 20;
       }
     }
+  /*
+  Adviced direction predictor
+  Use x = ay**2 + by + c for drawing parabols
+  Draw parabolic around x axis and translate for plotting and vector comparison
+  b = 0
+  c is adjustable
+  y_cross = 200
+  a = -c/y_cross**2
+  */
+  int16_t c = 50;
+  int16_t y_cross = 400;
+  float a = -(float)c/(y_cross * y_cross);
+  int16_t c_array[] = {25, 40, 50, 60};
+  int16_t c_array_size = 4;
+
+  int16_t x_ref = 0;
+  int16_t y_ref = 0;
+
+  int32_t direction = 0;
+  int16_t direction_saturation = 50;
+
+  // Construct direction predictor arrays
+  for (int16_t i = c_array_size - 1; i >= 0; i--)
+  {
+    int16_t difference = 0;
+    for (int16_t j = -1; j < 2; j += 2)
+    {
+      uint16_t temp = 0;
+      for (int16_t n = 0; n < vector_array_mid; n++) {
+        x = vector_array[vector_array_mid + n*j];
+        y_ref = (n*kernel_size + half_kernel_size + 1)*j;
+        x_ref = (int)(a*y_ref*y_ref) + c_array[i];
+
+        if (draw) {
+          // Draw pink vectors in middle, two layer thick for extra visibility
+          uint8_t *yp, *up, *vp;
+          pix_values = compute_pixel_yuv(img, x_ref, T_mid+n*j);
+          yp = pix_values.yp;
+          up = pix_values.up;
+          vp = pix_values.vp;
+          *up = 128;
+          *vp = 255;
+          *yp = 128;          
+          pix_values = compute_pixel_yuv(img, x_ref+1, T_mid+n*j);
+          yp = pix_values.yp;
+          up = pix_values.up;
+          vp = pix_values.vp;
+          *up = 128;
+          *vp = 255;
+          *yp = 128;
+        }
+
+        // Stop if object is found
+        temp = n;
+        if (x < x_ref) {
+          
+          break;
+        }
+      }
+      // Right away calculate the vector difference for predictive heading
+      difference += j*temp;
+    }
+
+    // Do for every vector
+    direction += difference;
+  }
+  // Bound vector advice such that a high spin situation is prevented
+  Bound(direction, -direction_saturation, direction_saturation);
+
+
+
+  // Draw the heading advice
+  if (draw) {
+    // Draw direction
+    if (direction >= 0) {
+      for (int16_t i = 0; i < direction; i++) {
+        x = 20;
+        y = T_mid + i;
+        uint8_t *yp, *up, *vp;
+        pix_values = compute_pixel_yuv(img, x, y);
+        yp = pix_values.yp;
+        up = pix_values.up;
+        vp = pix_values.vp;
+        *up = 230;
+        *vp = 100;
+        *yp = 29;
+      }
+    }
+    else {
+      for (int16_t i = 0; i > direction; i--) {
+        x = 20;
+        y = T_mid + i;
+        uint8_t *yp, *up, *vp;
+        pix_values = compute_pixel_yuv(img, x, y);
+        yp = pix_values.yp;
+        up = pix_values.up;
+        vp = pix_values.vp;
+        *up = 230;
+        *vp = 100;
+        *yp = 29;
+      }
+    }
+
+
+    // Draw grey lines to indicate test area for predictive routing
+    Bound(y_cross, 0, T_mid);
+    int16_t x = 0;
+    for (int16_t i = 0; i < c_array_size; i++) {
+      c = c_array[i];
+      for (int16_t y = T_mid - y_cross; y < T_mid + y_cross; y++){
+        int16_t y_temp = y - T_mid;
+          x = a*y_temp*y_temp + c;
+          uint8_t *yp, *up, *vp;
+          pix_values = compute_pixel_yuv(img, x, y);
+          yp = pix_values.yp;
+          up = pix_values.up;
+          vp = pix_values.vp;
+          *up = 128;
+          *vp = 128;
+          *yp = 128;
+        }
+    }
+  }
   test.color_count = cnt;
   test.vector_x = vector_x;
   test.vector_y = vector_y;
   test.ptr = &mask_array;
+  test.direction = direction;
   return test;
 }
 
@@ -785,7 +915,7 @@ void color_object_detector_periodic(void)
   pthread_mutex_unlock(&mutex);
 
   if(local_filters[0].updated){
-    AbiSendMsgVISUAL_DETECTION(COLOR_OBJECT_DETECTION1_ID, local_filters[0].x_c, local_filters[0].y_c,
+    AbiSendMsgVISUAL_DETECTION(COLOR_OBJECT_DETECTION1_ID, local_filters[0].direction, local_filters[0].y_c,
         local_filters[0].vector_x, local_filters[0].vector_y, local_filters[0].color_count, 0);
     local_filters[0].updated = false;
   }
