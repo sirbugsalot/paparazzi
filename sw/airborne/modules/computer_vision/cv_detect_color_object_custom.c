@@ -343,12 +343,10 @@ int find_next(int im_bw[], int prev_points[],  const int h, const int w, int ste
     init_guess[1] = dir[1];
     // printf("\nINIT GUESS: %d, %d",init_guess[0],init_guess[1]);
     int edge_found = 0;
-    int counter = 0;
-    while (edge_found == 0 && counter < 100) {
-      counter ++;
-        if (init_guess[0] + 1 < h && init_guess[0] > 0) {
-          // printf("\n\nNext point to check: %d", init_guess[0] + 1);
-          // printf("\nValue on that point: %d", im_bw[init_guess[0]*w + init_guess[1]] + im_bw[(init_guess[0]-1)*w + init_guess[1]]);
+    int ij = 0;
+    while (!edge_found && ij < 100) {
+        ij++;
+        if (init_guess[0] + 1 < h) {
             if ((im_bw[init_guess[0]*w + init_guess[1]] + im_bw[(init_guess[0]-1)*w + init_guess[1]]) == 1) {
                 edge_found = 1;
                 }
@@ -692,7 +690,7 @@ struct return_value find_object_centroid(struct image_t *img, int32_t* p_xc, int
   
   bool in_triangle = true;
 
-  for (int8_t i = 0; i < 20; i++){
+  for (int8_t i = 0; i < vector_array_length; i++){
     int16_t vector_length = vector_array[i];
 
     int16_t y = i*kernel_size + half_kernel_size;
